@@ -4,7 +4,7 @@ import pandas as pd
 import geopandas as gpd
 import plotly.graph_objects as go
 
-
+# read data and convert to geodataframe
 data = pd.read_csv("data/points_inside.csv")
 gdf = gpd.GeoDataFrame(
     data,
@@ -13,6 +13,12 @@ gdf = gpd.GeoDataFrame(
 )
 
 
+# set initial slider range to min/max of velocity column
+MIN_THRESHOLD = gdf["velocity (cm/yr)"].min()
+MAX_THRESHOLD = gdf["velocity (cm/yr)"].max()
+
+
+# when slider changes, updates highlighted points and colorbar
 @callback(
     Output('graph-with-slider', 'figure'),
     Input('threshold-slider', 'value'))
@@ -29,19 +35,23 @@ def update_figure(thresh):
                 lon=gdf.geometry.x.mean()
             )
         ),
+        title=dict(
+            text="Isabella Road Land Subsidence Velocity",
+            x=0.5,
+        ),
         margin=dict(r=0,t=0,l=0,b=0),
-        height=600
+        autosize=True
     )
 
     vel = gdf["velocity (cm/yr)"]
 
     out_thresh = gdf[
-        (vel < thresh[0]) |
-        (vel > thresh[1])]
+        (vel < MIN_THRESHOLD) |
+        (vel > MAX_THRESHOLD)]
     
     in_thresh = gdf[
-    (vel >= thresh[0]) &
-    (vel <= thresh[1])]
+    (vel >= MIN_THRESHOLD) &
+    (vel <= MAX_THRESHOLD)]
 
     
     # Base trace, light gray points for data under velocity threshold
@@ -67,12 +77,22 @@ def update_figure(thresh):
         mode="markers",
         marker=dict(
             size=0,  # invisible
-            color=[gdf["velocity (cm/yr)"].min()],
+            color=[MIN_THRESHOLD, MAX_THRESHOLD],
             colorscale="IceFire",
-            cmin=gdf["velocity (cm/yr)"].min(),
-            cmax=gdf["velocity (cm/yr)"].max(),
+            cmin=MIN_THRESHOLD,
+            cmax=MAX_THRESHOLD,
             colorbar=dict(
-                title="Velocity (cm/yr)"
+                x=0.98,
+                y=0.98,
+                xanchor="right",
+                yanchor="top",
+                title=dict(text="Velocity (cm/yr)",
+                           font=dict(color="white")),
+                len=0.5,
+                thickness=15,
+                orientation="h",
+                tickfont=dict(size=10,
+                              color="white"),
             ),
             showscale=True
         ),
@@ -99,18 +119,88 @@ def update_figure(thresh):
     return fig
 
 
+# when slider changes, updates text showing current range
+@callback(
+    Output("range-value", "children"),
+    Input("threshold-slider", "value")
+)
+def display_range(val):
+    return f"Range: [{val[0]:.2f}, {val[1]:.2f}] cm/yr"
 
+
+@callback(
+    Output("summ-stats", "children"),
+    Input("threshold-slider", "value")
+)
+def update_stats(val):
+    vel = gdf["velocity (cm/yr)"]
+    in_thresh = gdf[
+        (vel >= val[0]) &
+        (vel <= val[1])
+    ]
+
+    total = len(gdf)
+    count = len(in_thresh)
+    percent = 100 * count / total if total > 0 else 0 
+
+    return html.Div([
+        html.H4("Statistics for Points in Threshold"),
+        html.P(f"Points in Threshold: {count}"),
+        html.P(f"Percent of Total: {percent:.1f}%"),
+        html.P(f"Mean velocity: {in_thresh['velocity (cm/yr)'].mean():.2f} cm/yr"),
+        html.P(f"Median velocity: {in_thresh['velocity (cm/yr)'].median():.2f} cm/yr"),
+    ])
 
 app = Dash()
+
+# set app layout
 app.layout = html.Div([
-    html.H1(children="IR Prototype v0.2"),
-    dcc.RangeSlider(-3, 
-               3, 
-               step=0.01, 
-               value=[-3, 3], 
-               id="threshold-slider"),
-    dcc.Graph(id='graph-with-slider',
-              figure=update_figure([-3, 3]))
+
+
+    html.H1("IR Prototype v0.2",
+            style={"textAlign": "center"}),
+
+    # div with slider and graph side by side
+    html.Div([
+
+        # div for threshold slider and text
+        html.Div([
+            
+            html.H3("Velocity Threshold (cm/yr)"),
+
+            dcc.RangeSlider(round(MIN_THRESHOLD, 2), round(MAX_THRESHOLD, 2),
+                step=0.01,
+                value=[MIN_THRESHOLD, MAX_THRESHOLD],
+                id="threshold-slider"),
+            
+        html.Br(),
+
+        html.Div(id="range-value"),
+
+        html.Div(id="summ-stats")
+
+        ],
+
+        style= {"width": "20%",
+                "padding": "20px"}), 
+
+
+    # div for graph on right side
+    html.Div([
+        dcc.Graph(
+            id='graph-with-slider',
+            style={"height" : "85vh"},
+            figure=update_figure([MIN_THRESHOLD, MAX_THRESHOLD])
+            )
+    ],
+    style={"width": "80%"})
+
+],
+style={"display" : "flex"}
+
+    )
+
+
 ])
 
 
