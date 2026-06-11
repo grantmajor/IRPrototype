@@ -24,6 +24,17 @@ MAX_THRESHOLD = gdf["velocity (cm/yr)"].max()
     Input('threshold-slider', 'value'))
 def update_figure(thresh):
     fig = go.Figure()
+    
+    vel = gdf["velocity (cm/yr)"]
+
+    out_thresh = gdf[
+        (vel < thresh[0]) |
+        (vel > thresh[1])]
+    
+    in_thresh = gdf[
+    (vel >= thresh[0]) &
+    (vel <= thresh[1])]
+
 
     # Use satellite for base map, center map at data
     fig.update_layout(
@@ -42,17 +53,6 @@ def update_figure(thresh):
         margin=dict(r=0,t=0,l=0,b=0),
         autosize=True
     )
-
-    vel = gdf["velocity (cm/yr)"]
-
-    out_thresh = gdf[
-        (vel < MIN_THRESHOLD) |
-        (vel > MAX_THRESHOLD)]
-    
-    in_thresh = gdf[
-    (vel >= MIN_THRESHOLD) &
-    (vel <= MAX_THRESHOLD)]
-
     
     # Base trace, light gray points for data under velocity threshold
     fig.add_trace(go.Scattermap(
@@ -110,8 +110,8 @@ def update_figure(thresh):
             size=9,
             color=in_thresh["velocity (cm/yr)"],
             colorscale="IceFire",
-            cmin=vel.min(),
-            cmax=vel.max(),
+            cmin=MIN_THRESHOLD,
+            cmax=MAX_THRESHOLD,
         ),
         name="In Threshold"
     ))
@@ -190,10 +190,19 @@ app.layout = html.Div([
         dcc.Graph(
             id='graph-with-slider',
             style={"height" : "85vh"},
-            figure=update_figure([MIN_THRESHOLD, MAX_THRESHOLD])
+            figure=update_figure([MIN_THRESHOLD, MAX_THRESHOLD],),
+            config={"displaylogo": False,
+                    "modeBarButtonsToRemove": [
+                        "zoomInMap",
+                        "zoomOutMap",
+                        "autoScale2d"
+                    ]}
             )
     ],
     style={"width": "80%"})
+
+
+
 
 ],
 style={"display" : "flex"}
